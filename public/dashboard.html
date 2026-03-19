@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LoRa • Real-Time Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #14141f;
+            --bg-glass: rgba(20, 20, 30, 0.7);
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0b0;
+            --accent-green: #00ff9d;
+            --accent-blue: #00a6ff;
+            --accent-purple: #8a2be2;
+            --accent-orange: #ff6b00;
+            --accent-red: #ff3b3b;
+            --border-glass: 1px solid rgba(255, 255, 255, 0.1);
+            
+            /* JSON syntax colors */
+            --json-key: #ff9f4b;
+            --json-string: #6effb8;
+            --json-number: #6bc2ff;
+            --json-boolean: #ff7b7b;
+            --json-null: #b87cff;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a0b2e 0%, #2d1b3e 50%, #1f0f2f 100%);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            position: relative;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .ambient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(138, 43, 226, 0.1) 0%, transparent 30%),
+                radial-gradient(circle at 80% 70%, rgba(75, 0, 130, 0.1) 0%, transparent 30%),
+                radial-gradient(circle at 40% 80%, rgba(147, 112, 219, 0.1) 0%, transparent 40%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ===== DESKTOP FIRST HEADER ===== */
+        .header {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1rem 1.5rem;
+            background: var(--bg-glass);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: var(--border-glass);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .title-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            white-space: nowrap;
+        }
+
+        .glow {
+            text-shadow: 0 0 20px rgba(0, 255, 157, 0.3);
+        }
+
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .view-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .view-btn {
+            padding: 0.45rem 0.9rem;
+            border-radius: 10px;
+            border: var(--border-glass);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .view-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            transform: translateY(-1px);
+        }
+
+        .view-btn.active {
+            background: rgba(0, 255, 157, 0.12);
+            color: #6effb8;
+            border-color: rgba(0, 255, 157, 0.35);
+            box-shadow: 0 4px 16px rgba(0, 255, 157, 0.25);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff9d;
+            box-shadow: 0 0 20px #00ff9d;
+            animation: pulse 2s infinite;
+            flex-shrink: 0;
+        }
+
+        .status-dot.error {
+            background: #ff3b3b;
+            box-shadow: 0 0 20px #ff3b3b;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .status-text {
+            font-size: 0.95rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .view-mode-badge {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            border-radius: 100px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border: var(--border-glass);
+        }
+
+        .badge-FULL { background: rgba(138, 43, 226, 0.2); color: #b87cff; }
+        .badge-ENRICHED { background: rgba(0, 166, 255, 0.2); color: #6bc2ff; }
+        .badge-SEMANTIC { background: rgba(0, 255, 157, 0.2); color: #6effb8; }
+        .badge-BCARE { background: rgba(255, 107, 0, 0.2); color: #ff9f4b; }
+        .badge-UPLINK { background: rgba(255, 59, 59, 0.2); color: #ff7b7b; }
+
+        /* JSON View with Consolas font and syntax highlighting */
+        .json-view {
+            background: var(--bg-glass);
+            backdrop-filter: blur(10px);
+            border: var(--border-glass);
+            border-radius: 16px;
+            padding: 1.5rem;
+            font-family: 'Consolas', 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            max-height: 70vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            margin-bottom: 2rem;
+        }
+
+        /* JSON syntax highlighting */
+        .json-view .json-key {
+            color: var(--json-key);
+            font-weight: 500;
+        }
+        
+        .json-view .json-string {
+            color: var(--json-string);
+        }
+        
+        .json-view .json-number {
+            color: var(--json-number);
+        }
+        
+        .json-view .json-boolean {
+            color: var(--json-boolean);
+        }
+        
+        .json-view .json-null {
+            color: var(--json-null);
+        }
+
+        .full-map {
+            height: 500px;
+            width: 100%;
+            display: none;
+            overflow: hidden;
+            border-radius: 24px;
+        }
+
+        .leaflet-container {
+            background: #1a1a2a;
+        }
+
+        /* ===== MOBILE OPTIMIZATION - ONLY WHEN NEEDED ===== */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 1rem;
+                padding: 1rem;
+            }
+
+            .title-section {
+                justify-content: space-between;
+                width: 100%;
+            }
+
+            h1 {
+                font-size: 1.4rem;
+                white-space: normal;
+            }
+
+            .status-container {
+                width: 100%;
+            }
+
+            .status-text {
+                font-size: 0.85rem;
+                white-space: normal;
+            }
+
+            .view-mode-badge {
+                font-size: 0.7rem;
+                padding: 0.3rem 0.8rem;
+            }
+
+            .json-view {
+                padding: 1rem;
+                font-size: 0.8rem;
+                max-height: 60vh;
+                margin-bottom: 1rem;
+            }
+
+            .ui-container {
+                padding: 1rem;
+            }
+
+            .ui-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .location-card {
+                flex-direction: column;
+                text-align: center;
+                gap: 1rem;
+                padding: 1.5rem;
+            }
+
+            .location-info {
+                text-align: center;
+            }
+
+            .location-name {
+                font-size: 1.8rem;
+            }
+
+            .location-pin {
+                width: 60px;
+                height: 60px;
+            }
+
+            .pin-emoji {
+                font-size: 3rem;
+            }
+
+            .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.3rem;
+                padding: 0.6rem 0;
+            }
+
+            .info-label {
+                font-size: 0.75rem;
+                text-transform: uppercase;
+            }
+
+            .info-value {
+                font-size: 0.9rem;
+            }
+
+            .full-map {
+                height: 350px;
+            }
+
+            .gps-mini-map {
+                height: 180px;
+            }
+        }
+
+        /* Touch optimizations */
+        .device-badge, 
+        .aux-badge,
+        .view-mode-badge {
+            cursor: default;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Better scrollbars */
+        .json-view::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .json-view::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .json-view::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        /* Prevent text overflow */
+        .device-id,
+        .location-mac,
+        .info-value.mono {
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            hyphens: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg"></div>
+    
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="title-section">
+                <h1 class="glow">📡 LoRa <span style="font-weight:300; opacity:0.7;">Dashboard</span></h1>
+                <span id="viewModeBadge" class="view-mode-badge"></span>
+            </div>
+            <div class="view-toggle" id="viewToggle">
+                <button class="view-btn" data-mode="FULL">Full</button>
+                <button class="view-btn" data-mode="SEMANTIC">Semantic</button>
+                <button class="view-btn" data-mode="ENRICHED">Enriched</button>
+                <button class="view-btn" data-mode="BCARE">BCare</button>
+                <button class="view-btn" data-mode="UPLINK">Uplink</button>
+            </div>
+            <div class="status-container">
+                <div class="status-dot" id="statusDot"></div>
+                <h3 id="date" class="status-text">Waiting for data...</h3>
+            </div>
+        </div>
+
+        <!-- JSON View with syntax highlighting -->
+        <pre id="out" class="json-view">Waiting for data...</pre>
+
+        <!-- Full Map View -->
+        <div id="map" class="full-map"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // =============================
+        // DOM Elements
+        // =============================
+        const out = document.getElementById("out");
+        const dateEl = document.getElementById("date");
+        const statusDot = document.getElementById("statusDot");
+        const mapDiv = document.getElementById("map");
+        const viewModeBadge = document.getElementById("viewModeBadge");
+        const viewToggle = document.getElementById("viewToggle");
+
+        // =============================
+        // Map State
+        // =============================
+        let mainMap = null;
+        let gpsMap = null;
+        let markers = [];
+        let bounds = L.latLngBounds();
+        let firstFix = true;
+
+        // View state
+        let currentViewMode = "SEMANTIC";
+        let latestPacket = null;
+        let latestTimestamp = null;
+
+        // =============================
+        // JSON Syntax Highlighter
+        // =============================
+        function syntaxHighlight(json) {
+            if (json === undefined || json === null) {
+                return '<span class="json-null">null</span>';
+            }
+            
+            if (typeof json !== 'string') {
+                try {
+                    json = JSON.stringify(json, null, 2);
+                } catch (e) {
+                    return '<span class="json-null">Error: Cannot stringify data</span>';
+                }
+            }
+            
+            if (json.trim() === '') {
+                return '<span class="json-string">"Empty data"</span>';
+            }
+            
+            try {
+                json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                
+                return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+                    let cls = '';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'json-key';
+                            match = match.replace(/"/g, '');
+                        } else {
+                            cls = 'json-string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'json-boolean';
+                    } else if (/null/.test(match)) {
+                        cls = 'json-null';
+                    } else if (!isNaN(parseFloat(match)) && isFinite(match)) {
+                        cls = 'json-number';
+                    }
+                    
+                    if (cls) {
+                        return '<span class="' + cls + '">' + match + '</span>';
+                    }
+                    return match;
+                });
+            } catch (e) {
+                console.error("Syntax highlighting error:", e);
+                return json;
+            }
+        }
+
+        // =============================
+        // Map Initialization
+        // =============================
+        function initMainMap() {
+            if (!mainMap) {
+                mainMap = L.map("map");
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                    attribution: "&copy; OpenStreetMap"
+                }).addTo(mainMap);
+            }
+            return mainMap;
+        }
+
+        function clearMarkers() {
+            if (mainMap) {
+                markers.forEach(marker => mainMap.removeLayer(marker));
+                markers = [];
+                bounds = L.latLngBounds();
+                firstFix = true;
+            }
+        }
+
+        function updateMainMap(lat, lng, deviceId, timestamp) {
+            if (!mainMap) initMainMap();
+            if (!mainMap) return;
+            
+            const marker = L.marker([lat, lng]).addTo(mainMap);
+            marker.bindPopup(`<b>Device:</b> ${deviceId}<br><b>Time:</b> ${timestamp}`);
+            markers.push(marker);
+            bounds.extend([lat, lng]);
+            
+            if (firstFix) {
+                mainMap.setView([lat, lng], 16);
+                firstFix = false;
+            } else {
+                mainMap.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+
+        // =============================
+        // GPS Extraction (with BCare support)
+        // =============================
+        function extractGpsCoordinates(fullPacket, mode) {
+            if (!fullPacket) return null;
+
+            // Helper to extract from a given object
+            function getFromObj(obj) {
+                if (!obj) return null;
+                // Try common GPS locations
+                if (obj.latitude && obj.longitude) return { lat: obj.latitude, lng: obj.longitude };
+                if (obj.lat && obj.lon) return { lat: obj.lat, lng: obj.lon };
+                if (obj.gps) return getFromObj(obj.gps);
+                if (obj.location) return getFromObj(obj.location);
+                return null;
+            }
+
+            // Based on the current mode, pick the relevant part of the packet
+            let target = null;
+            switch (mode) {
+                case "FULL":
+                    // For FULL, we want to show the most recent valid location from the state,
+                    // which is stored in formatted.gps. Fall back to semantic if not present.
+                    target = fullPacket.formatted?.gps ? fullPacket.formatted : fullPacket.semantic;
+                    break;
+                case "SEMANTIC":
+                    target = fullPacket.semantic;
+                    break;
+                case "ENRICHED":
+                    target = fullPacket.enriched;
+                    break;
+                case "BCARE":
+                    target = fullPacket.formatted;
+                    break;
+                case "UPLINK":
+                    target = fullPacket.uplink;
+                    break;
+                default:
+                    target = fullPacket;
+            }
+
+            // If target is an object, try to extract
+            return getFromObj(target);
+        }
+
+        // =============================
+        // View Helpers
+        // =============================
+        function setActiveViewButton(mode) {
+            if (!viewToggle) return;
+            viewToggle.querySelectorAll('.view-btn').forEach(btn => {
+                const isActive = btn.dataset.mode === mode;
+                btn.classList.toggle('active', isActive);
+            });
+        }
+
+        function getViewData(packet, mode) {
+            if (!packet) return null;
+            switch (mode) {
+                case "FULL":
+                    return packet;
+                case "SEMANTIC":
+                    return packet.semantic || packet;
+                case "ENRICHED":
+                    return packet.enriched || packet;
+                case "BCARE":
+                    return packet.formatted || packet;
+                case "UPLINK":
+                    return packet.uplink || packet;
+                default:
+                    return packet;
+            }
+        }
+
+        function normalizeIncoming(wrapped) {
+            if (!wrapped) return { packet: null, timestamp: null, mode: null };
+
+            // New format: { uplink, enriched, semantic, formatted, timestamp }
+            if (wrapped.uplink || wrapped.enriched || wrapped.semantic || wrapped.formatted) {
+                return { packet: wrapped, timestamp: wrapped.timestamp || Date.now(), mode: wrapped.viewMode || null };
+            }
+
+            // Legacy format: { data: {...}, viewMode, timestamp }
+            if (wrapped.data) {
+                return { packet: wrapped.data, timestamp: wrapped.timestamp || wrapped.data.timestamp || Date.now(), mode: wrapped.viewMode || null };
+            }
+
+            // Fallback
+            return { packet: wrapped, timestamp: wrapped.timestamp || Date.now(), mode: wrapped.viewMode || null };
+        }
+
+        function setViewMode(mode) {
+            if (!mode) return;
+            currentViewMode = mode;
+            viewModeBadge.textContent = mode;
+            viewModeBadge.className = `view-mode-badge badge-${mode}`;
+            setActiveViewButton(mode);
+            renderLatest();
+        }
+
+        function renderLatest() {
+            if (!latestPacket) {
+                out.style.display = "block";
+                mapDiv.style.display = "none";
+                out.textContent = "Waiting for data...";
+                return;
+            }
+
+            statusDot.className = "status-dot";
+            if (latestTimestamp) {
+                dateEl.textContent = `Last update: ${new Date(latestTimestamp).toLocaleString()}`;
+            }
+
+            const viewData = getViewData(latestPacket, currentViewMode);
+
+            out.style.display = "block";
+
+            if (viewData) {
+                out.innerHTML = syntaxHighlight(viewData);
+            } else {
+                out.innerHTML = '<span class="json-null">No data available</span>';
+            }
+
+            // Extract GPS coordinates using the improved function
+            const gps = extractGpsCoordinates(latestPacket, currentViewMode);
+            const hasValidGps = gps && typeof gps.lat === 'number' && typeof gps.lng === 'number' && !isNaN(gps.lat) && !isNaN(gps.lng);
+
+            if (hasValidGps) {
+                mapDiv.style.display = "block";
+                
+                if (!mainMap) initMainMap();
+                
+                const viewDev = viewData || {};
+                const deviceId = viewDev.deviceId || viewDev.devEui || latestPacket.semantic?.devEui || "Unknown";
+                const dataTimestamp = latestTimestamp ? new Date(latestTimestamp).toLocaleString() : new Date().toLocaleString();
+                
+                updateMainMap(gps.lat, gps.lng, deviceId, dataTimestamp);
+            } else {
+                mapDiv.style.display = "none";
+                if (mainMap) clearMarkers();
+            }
+        }
+
+        // =============================
+        // EventSource Connection
+        // =============================
+        console.log("Connecting to /events...");
+        const evt = new EventSource("/events");
+
+        evt.onopen = () => {
+            console.log("SSE connection opened");
+            statusDot.className = "status-dot";
+            dateEl.textContent = "Connected, waiting for data...";
+        };
+
+        evt.onmessage = e => {
+            try {
+                console.log("Received data:", e.data);
+
+                if (!e.data || e.data.trim() === '') {
+                    console.log("Empty data received");
+                    return;
+                }
+
+                const wrapped = JSON.parse(e.data);
+                if (!wrapped) return;
+
+                const { packet, timestamp, mode } = normalizeIncoming(wrapped);
+                if (!packet) {
+                    console.log("Packet is null after normalization");
+                    return;
+                }
+
+                latestPacket = packet;
+                latestTimestamp = timestamp || Date.now();
+
+                // If server suggests a mode, sync it (but keep manual toggles afterward)
+                if (mode) {
+                    currentViewMode = mode;
+                    setActiveViewButton(mode);
+                    viewModeBadge.textContent = mode;
+                    viewModeBadge.className = `view-mode-badge badge-${mode}`;
+                }
+
+                renderLatest();
+
+            } catch (err) {
+                console.error("Parse error:", err);
+                statusDot.className = "status-dot error";
+                dateEl.textContent = "Parse error";
+                out.innerHTML = `Error parsing data: ${err.message}`;
+            }
+        };
+
+        evt.onerror = (err) => {
+            console.error("SSE error:", err);
+            statusDot.className = "status-dot error";
+            dateEl.textContent = "Connection lost - retrying...";
+        };
+
+        if (viewToggle) {
+            viewToggle.addEventListener('click', (e) => {
+                const btn = e.target.closest('.view-btn');
+                if (!btn) return;
+                const mode = btn.dataset.mode;
+                setViewMode(mode);
+            });
+        }
+
+        // Initialize badge and active state
+        setViewMode(currentViewMode);
+
+        window.addEventListener('resize', () => {
+            if (mainMap) mainMap.invalidateSize();
+            if (gpsMap) gpsMap.invalidateSize();
+        });
+
+        // Health check con gestione errori
+        fetch('/health')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("Server health:", data);
+            })
+            .catch(err => {
+                console.error("Server health check failed:", err);
+                dateEl.textContent = "Cannot connect to server";
+                statusDot.className = "status-dot error";
+            });
+    </script>
+</body>
+</html>

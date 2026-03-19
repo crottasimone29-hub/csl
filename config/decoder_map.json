@@ -1,0 +1,10 @@
+{
+    "0c97d1aa-b62e-43b2-80f2-a4892911b7d0": {
+        "deviceName": "MOKO LW004-PB",
+        "decoderFileName": "moko_lw004.js"
+    },
+    "632460bb-9a2e-49be-a90b-f4fb27e64a5e": {
+        "deviceName": "MOKO LW010-CT",
+        "decoderFileName": "moko_lw010.js"
+    }
+}
