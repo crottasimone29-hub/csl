@@ -39,5 +39,6 @@ app.listen(PORT, () => {
     console.log(BEACON_MAP);
     consolePrintHeader('DECODER MAP', '*');
     console.log(DECODER_MAP);
+    consolePrintHeader('WAITING FOR DATA', '*');
     consolePrintHeader('', '*');
 });
