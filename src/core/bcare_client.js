@@ -2,7 +2,7 @@ const axios = require('axios');
 const { consolePrintHeader, consolePrintError } = require('../utils/logger');
 
 const BCARE_ENABLE = process.env.BCARE_ENABLE === 'true';
-const BCARE_THROTTLE_MS = parseInt(process.env.BCARE_THROTTLE_MS || '25000');
+const BCARE_THROTTLE_MS = parseInt(process.env.BCARE_THROTTLE_MS || '30000');
 
 let timeOfLastDataSentToBCare = null;
 
