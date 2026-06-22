@@ -37,6 +37,17 @@ function logAlarmGate(deviceId, alarmName, state, timestamp) {
     consolePrintHeader(`ALARM GATE [${deviceId}] ${alarmName} ${state} @ ${timestamp}`, '#');
 }
 
+function logAlarmGateSnapshot(deviceId, deviceState, timestamp, decision = null, alarmType = null) {
+    const manDownStatus = deviceState.manDown.active ? 'ACTIVE' : 'IDLE';
+    const sosStatus = deviceState.sos.active ? 'ACTIVE' : 'IDLE';
+    const decisionText = decision === null ? '' : ` decision=${decision}`;
+    const alarmText = alarmType ? ` alarm=${alarmType}` : '';
+    consolePrintHeader(
+        `ALARM GATE [${deviceId}] manDown=${manDownStatus} sos=${sosStatus}${alarmText}${decisionText} @ ${timestamp}`,
+        '#'
+    );
+}
+
 function clearAlarmState(alarmState) {
     // Clearing ends the current cycle: the next valid alarm start may send again.
     alarmState.active = false;
@@ -140,7 +151,10 @@ function shouldSendPacket(normalized) {
     }
 
     const alarmType = getAlarmTypeForPacket(normalized);
-    if (!alarmType) return true;
+    if (!alarmType) {
+        logAlarmGateSnapshot(normalized.deviceId, deviceState, timestamp, 'PASS', 'none');
+        return true;
+    }
 
     const alarmState = deviceState[alarmType];
 
@@ -148,13 +162,18 @@ function shouldSendPacket(normalized) {
         // First positioning packet after a start opens the send window for this cycle.
         activateAlarm(alarmState, timestamp);
         alarmState.sentDuringCycle = true;
+        logAlarmGateSnapshot(normalized.deviceId, deviceState, timestamp, 'PASS', alarmType);
         return true;
     }
 
     // Any additional packet in the same cycle is suppressed until an end or timeout.
-    if (alarmState.sentDuringCycle) return false;
+    if (alarmState.sentDuringCycle) {
+        logAlarmGateSnapshot(normalized.deviceId, deviceState, timestamp, 'BLOCK', alarmType);
+        return false;
+    }
 
     alarmState.sentDuringCycle = true;
+    logAlarmGateSnapshot(normalized.deviceId, deviceState, timestamp, 'PASS', alarmType);
     return true;
 }
 

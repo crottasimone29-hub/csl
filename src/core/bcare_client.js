@@ -2,7 +2,9 @@ const axios = require('axios');
 const { consolePrintHeader, consolePrintError } = require('../utils/logger');
 const { updateFromSemantic, shouldSendPacket } = require('../alarm-managers/lw010_ct_alarm_manager');
 
-const BCARE_ENABLE = process.env.BCARE_ENABLE === 'true';
+function isBCareEnabled() {
+    return process.env.BCARE_ENABLE === 'true';
+}
 
 function formatForBCare(normalized) {
     if (!normalized) return null;
@@ -43,7 +45,7 @@ async function sendToBCare(telemetry) {
     const normalizedData = telemetry.normalized;
     if (!normalizedData) return null;
 
-    if (!BCARE_ENABLE) {
+    if (!isBCareEnabled()) {
         return null;
     }
 
