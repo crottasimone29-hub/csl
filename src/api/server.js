@@ -46,6 +46,8 @@ function createServer(beaconMap, decoderMap) {
             // 1. Log del risultato
             consolePrintHeader(`${formatDateTime(Date.now())}`, '*');
             console.dir(result.semantic, { depth: null });
+            consolePrintHeader(`${formatDateTime(Date.now())}`, '*');
+            console.dir(result.normalized, { depth: null });            
             consolePrintHeader('END', '*');
 
             // 2. Invio alla Dashboard
