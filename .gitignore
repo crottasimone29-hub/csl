@@ -7,6 +7,16 @@ dist/
 # Logs
 *.log
 npm-debug.log*
+pm2.log
+dump.pm2
+
+# Local environment
+.env
+.env.*
+
+# PM2 runtime
+pids/
+logs/
 
 # OS files
 .DS_Store

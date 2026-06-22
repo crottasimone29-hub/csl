@@ -47,6 +47,11 @@ function processPayload(buffer, macToPosition = {}, decoderMap) {
     if (decoder.buildSemantic) {
         semantic = decoder.buildSemantic(enrichedUplink, macToPosition);
         if (semantic) semantic.time = normalizeTimeToMs(semantic.time) ?? Date.now();
+        if (semantic) {
+            semantic.deviceName = decoderMap[profileId].deviceName;
+            semantic.deviceProfileId = profileId;
+            semantic.decoderFileName = decoderMap[profileId].decoderFileName;
+        }
     }
 
     // 3. Normalized (ex Formatted)

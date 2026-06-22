@@ -2,6 +2,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { createServer } = require('./api/server');
+const sseManager = require('./api/sse_manager');
 const { consolePrintHeader, consolePrintError } = require('./utils/logger');
 
 const PORT = process.env.PORT || 3000;
@@ -32,8 +33,7 @@ for (const [position, mac] of Object.entries(rawBeaconData)) {
 
 // 2. Inizializza e avvia il server
 const app = createServer(BEACON_MAP, DECODER_MAP);
-
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     consolePrintHeader(`ChirpStack webhook server running on port ${PORT}`, '#');
     consolePrintHeader('BEACON MAP', '*');
     console.log(BEACON_MAP);
@@ -42,3 +42,21 @@ app.listen(PORT, () => {
     consolePrintHeader('WAITING FOR DATA', '*');
     consolePrintHeader('', '*');
 });
+
+function shutdown(signal) {
+    consolePrintHeader(`Received ${signal}, shutting down`, '@');
+    sseManager.closeAllClients();
+
+    server.close(() => {
+        consolePrintHeader('Server closed', '@');
+        process.exit(0);
+    });
+
+    setTimeout(() => {
+        consolePrintError(new Error('Forced shutdown timeout reached'), 'Shutdown timeout');
+        process.exit(1);
+    }, 5000).unref();
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

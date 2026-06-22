@@ -1,10 +1,8 @@
 const axios = require('axios');
 const { consolePrintHeader, consolePrintError } = require('../utils/logger');
+const { updateFromSemantic, shouldSendPacket } = require('../alarm-managers/lw010_ct_alarm_manager');
 
 const BCARE_ENABLE = process.env.BCARE_ENABLE === 'true';
-const BCARE_THROTTLE_MS = parseInt(process.env.BCARE_THROTTLE_MS || '30000');
-
-let timeOfLastDataSentToBCare = null;
 
 function formatForBCare(normalized) {
     if (!normalized) return null;
@@ -35,12 +33,18 @@ function formatForBCare(normalized) {
     return bcareFormat;
 }
 
-async function sendToBCare(normalizedData) {
-    if (!BCARE_ENABLE || !normalizedData) return null;
+async function sendToBCare(telemetry) {
+    if (!BCARE_ENABLE || !telemetry) return null;
 
-    if (timeOfLastDataSentToBCare && (Date.now() - timeOfLastDataSentToBCare) < BCARE_THROTTLE_MS) {
-        const remainingSec = Math.ceil((BCARE_THROTTLE_MS - (Date.now() - timeOfLastDataSentToBCare)) / 1000);
-        consolePrintHeader(`BCare throttle active: wait ${remainingSec}s`, '#');
+    if (telemetry.semantic) {
+        updateFromSemantic(telemetry.semantic);
+    }
+
+    const normalizedData = telemetry.normalized;
+    if (!normalizedData) return null;
+
+    if (!shouldSendPacket(normalizedData)) {
+        consolePrintHeader(`BCare gate active for ${normalizedData.deviceId}`, '#');
         return null;
     }
 
@@ -67,8 +71,7 @@ async function sendToBCare(normalizedData) {
     try {
         consolePrintHeader('Invio dati a BCare', '#');
         const response = await axios.post(url, null, { headers: { 'Content-Type': 'application/json' }, timeout: 10000 });
-        
-        timeOfLastDataSentToBCare = Date.now();
+
         consolePrintHeader('Risposta da BCare', '#');
         console.log(JSON.stringify(response.data, null, 2));
         

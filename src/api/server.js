@@ -52,7 +52,7 @@ function createServer(beaconMap, decoderMap) {
             sseManager.broadcastToDashboards(result);
 
             // 3. Invio asincrono a BCare passando il nuovo oggetto "normalized"
-            sendToBCare(result.normalized).catch(err => consolePrintError(err));
+            sendToBCare(result).catch(err => consolePrintError(err));
 
             res.status(200).send('OK');
         } catch (err) {

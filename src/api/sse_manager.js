@@ -37,4 +37,13 @@ function getClientCount() {
     return sseClients.length;
 }
 
-module.exports = { addClient, broadcastToDashboards, getClientCount };
+function closeAllClients() {
+    sseClients.forEach(client => {
+        if (!client.res.writableEnded) {
+            client.res.end();
+        }
+    });
+    sseClients = [];
+}
+
+module.exports = { addClient, broadcastToDashboards, getClientCount, closeAllClients };
