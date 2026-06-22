@@ -34,7 +34,7 @@ function formatForBCare(normalized) {
 }
 
 async function sendToBCare(telemetry) {
-    if (!BCARE_ENABLE || !telemetry) return null;
+    if (!telemetry) return null;
 
     if (telemetry.semantic) {
         updateFromSemantic(telemetry.semantic);
@@ -42,6 +42,10 @@ async function sendToBCare(telemetry) {
 
     const normalizedData = telemetry.normalized;
     if (!normalizedData) return null;
+
+    if (!BCARE_ENABLE) {
+        return null;
+    }
 
     if (!shouldSendPacket(normalizedData)) {
         consolePrintHeader(`BCare gate active for ${normalizedData.deviceId}`, '#');
