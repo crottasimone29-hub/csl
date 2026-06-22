@@ -1,5 +1,7 @@
 const LW010_CT_DECODER_FILE = 'moko_lw010.js';
-const MAN_DOWN_TIMEOUT_MS = parseInt(process.env.MAN_DOWN_TIMEOUT_MS || process.env.BCARE_THROTTLE || '30000', 10);
+const MAN_DOWN_TIMEOUT_MS = 600000;
+const SOS_TIMEOUT_MS = 600000;
+const { consolePrintHeader } = require('../utils/logger');
 
 const deviceStates = new Map();
 
@@ -18,7 +20,6 @@ function getDeviceState(deviceId) {
             manDown: {
                 active: false,
                 startedAt: null,
-                lastHeartbeatAt: null,
                 sentDuringCycle: false,
             },
             sos: {
@@ -32,14 +33,15 @@ function getDeviceState(deviceId) {
     return deviceStates.get(deviceId);
 }
 
+function logAlarmGate(deviceId, alarmName, state, timestamp) {
+    consolePrintHeader(`ALARM GATE [${deviceId}] ${alarmName} ${state} @ ${timestamp}`, '#');
+}
+
 function clearAlarmState(alarmState) {
     // Clearing ends the current cycle: the next valid alarm start may send again.
     alarmState.active = false;
     alarmState.startedAt = null;
     alarmState.sentDuringCycle = false;
-    if ('lastHeartbeatAt' in alarmState) {
-        alarmState.lastHeartbeatAt = null;
-    }
 }
 
 function activateAlarm(alarmState, timestamp) {
@@ -47,16 +49,22 @@ function activateAlarm(alarmState, timestamp) {
     alarmState.startedAt = timestamp;
 }
 
-function expireManDownIfNeeded(deviceState, timestamp) {
-    if (!deviceState.manDown.active) return;
+function expireAlarmIfNeeded(alarmState, timestamp, timeoutMs) {
+    if (!alarmState.active || !alarmState.startedAt) return;
 
-    // Man Down has no explicit end packet, so the cycle closes when heartbeats stop.
-    const referenceTime = deviceState.manDown.lastHeartbeatAt ?? deviceState.manDown.startedAt;
-    if (!referenceTime) return;
-
-    if ((timestamp - referenceTime) > MAN_DOWN_TIMEOUT_MS) {
-        clearAlarmState(deviceState.manDown);
+    if ((timestamp - alarmState.startedAt) >= timeoutMs) {
+        clearAlarmState(alarmState);
+        return true;
     }
+
+    return false;
+}
+
+function expireDeviceAlarmsIfNeeded(deviceState, timestamp) {
+    return {
+        manDownExpired: expireAlarmIfNeeded(deviceState.manDown, timestamp, MAN_DOWN_TIMEOUT_MS),
+        sosExpired: expireAlarmIfNeeded(deviceState.sos, timestamp, SOS_TIMEOUT_MS),
+    };
 }
 
 function updateFromSemantic(semantic) {
@@ -66,8 +74,14 @@ function updateFromSemantic(semantic) {
     const timestamp = semantic.time ?? Date.now();
     const deviceState = getDeviceState(deviceId);
 
-    // Expire stale Man Down cycles before processing the current event.
-    expireManDownIfNeeded(deviceState, timestamp);
+    // Expire stale alarm cycles before processing the current event.
+    const expiredGates = expireDeviceAlarmsIfNeeded(deviceState, timestamp);
+    if (expiredGates.manDownExpired) {
+        logAlarmGate(deviceId, 'manDown', 'EXPIRED', timestamp);
+    }
+    if (expiredGates.sosExpired) {
+        logAlarmGate(deviceId, 'sos', 'EXPIRED', timestamp);
+    }
 
     if (semantic.payloadType !== 'Event') return;
 
@@ -76,23 +90,25 @@ function updateFromSemantic(semantic) {
             // Start a new Man Down cycle only once; repeated starts do not reopen it.
             if (!deviceState.manDown.active) {
                 activateAlarm(deviceState.manDown, timestamp);
+                logAlarmGate(deviceId, 'manDown', 'OPEN', timestamp);
             }
             break;
         case 0x04:
-            // Heartbeats extend the current Man Down cycle and keep it alive.
-            if (deviceState.manDown.active) {
-                deviceState.manDown.lastHeartbeatAt = timestamp;
-            }
+            // Man Down end closes only the Man Down cycle; it must not affect SOS.
+            clearAlarmState(deviceState.manDown);
+            logAlarmGate(deviceId, 'manDown', 'CLOSE', timestamp);
             break;
         case 0x05:
             // SOS is independent from Man Down and uses its own cycle.
             if (!deviceState.sos.active) {
                 activateAlarm(deviceState.sos, timestamp);
+                logAlarmGate(deviceId, 'sos', 'OPEN', timestamp);
             }
             break;
         case 0x06:
             // SOS end closes only the SOS cycle; it must not affect Man Down.
             clearAlarmState(deviceState.sos);
+            logAlarmGate(deviceId, 'sos', 'CLOSE', timestamp);
             break;
     }
 }
@@ -115,7 +131,13 @@ function shouldSendPacket(normalized) {
     const deviceState = getDeviceState(normalized.deviceId);
 
     // Packet decisions also honor cycle expiry so stale alarms do not stay locked forever.
-    expireManDownIfNeeded(deviceState, timestamp);
+    const expiredGates = expireDeviceAlarmsIfNeeded(deviceState, timestamp);
+    if (expiredGates.manDownExpired) {
+        logAlarmGate(normalized.deviceId, 'manDown', 'EXPIRED', timestamp);
+    }
+    if (expiredGates.sosExpired) {
+        logAlarmGate(normalized.deviceId, 'sos', 'EXPIRED', timestamp);
+    }
 
     const alarmType = getAlarmTypeForPacket(normalized);
     if (!alarmType) return true;

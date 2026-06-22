@@ -1,11 +1,25 @@
-require('dotenv').config();
+const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
 const { createServer } = require('./api/server');
 const sseManager = require('./api/sse_manager');
 const { consolePrintHeader, consolePrintError } = require('./utils/logger');
 
-const PORT = process.env.PORT || 3000;
+const envPath = path.join(__dirname, '../.env');
+const envConfig = fs.existsSync(envPath) ? dotenv.parse(fs.readFileSync(envPath)) : {};
+
+dotenv.config({ override: true });
+
+function parsePort(value) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+        return null;
+    }
+
+    return parsed;
+}
+
+const PORT = parsePort(envConfig.PORT) || 3000;
 
 function loadJsonSync(filePath, name) {
     try {

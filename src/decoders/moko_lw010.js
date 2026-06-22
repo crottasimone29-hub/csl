@@ -105,7 +105,7 @@ function getEventTypeText(type) {
         case 0x01: return "In Movement";
         case 0x02: return "Movement End";
         case 0x03: return "Man Down Start";
-        case 0x04: return "Man Down Ongoing";
+        case 0x04: return "Man Down End";
         case 0x05: return "SOS Start";
         case 0x06: return "SOS End";
         case 0x07: return "Alert Alarm Start";
