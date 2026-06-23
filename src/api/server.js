@@ -6,6 +6,8 @@ const { processPayload } = require('../core/pipeline');
 const { sendToBCare } = require('../core/bcare_client');
 const { consolePrintHeader, consolePrintError } = require('../utils/logger');
 const { formatDateTime } = require('../utils/helpers');
+const { processDeviceEvent } = require('../alarm-managers/AM_moko_lw010');
+const alarmGateway = require('./src/alarm-managers/alarm-manager');
 
 function createServer(beaconMap, decoderMap) {
     const app = express();
@@ -53,8 +55,12 @@ function createServer(beaconMap, decoderMap) {
             // 2. Invio alla Dashboard
             sseManager.broadcastToDashboards(result);
 
-            // 3. Invio asincrono a BCare passando il nuovo oggetto "normalized"
-            sendToBCare(result).catch(err => consolePrintError(err));
+            const isAlarmActive = alarmGateway.manageAlarm(result.semantic);
+
+            if (isAlarmActive) {
+                // 3. Invio asincrono a BCare passando il nuovo oggetto "normalized"
+                sendToBCare(result.normalized).catch(err => consolePrintError(err));
+            }
 
             res.status(200).send('OK');
         } catch (err) {

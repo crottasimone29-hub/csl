@@ -364,6 +364,8 @@ function buildSemantic(enrichedUplink, macToPosition) {
 
     const semantic = {
         devEui: enrichedUplink.deviceInfo?.devEui,
+        deviceProfileId: enrichedUplink.deviceInfo?.deviceProfileId,
+        deviceName: enrichedUplink.deviceInfo?.deviceName,
         time: enrichedUplink.time,
         gateways: Array.isArray(enrichedUplink.rxInfo)
             ? enrichedUplink.rxInfo.map(info => info.gatewayId).filter(Boolean)
@@ -527,7 +529,6 @@ function buildNormalized(semantic) {
         deviceId: semantic.devEui,
         deviceProfileId: semantic.deviceProfileId,
         deviceName: semantic.deviceName,
-        decoderFileName: semantic.decoderFileName,
         fPort: semantic.fPort,
         payloadType: semantic.payloadType,
         positioningTypeCode: semantic.positioningTypeCode,

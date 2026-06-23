@@ -1,5 +1,5 @@
 {
-    "<DEVICE_UUID>": {
+    "<deviceProfileID>": {
         "deviceName": "<DEVICE_NAME>",
         "decoderFileName": "<DECODER_FILE>.js"
     }
